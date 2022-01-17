@@ -1,37 +1,51 @@
 import React, {Component} from 'react';
 import TodoItem from './TodoItem';
+import TodoForm from './TodoForm';
 import './TodoList.css'
-const APIURL = '/api/todos';
+import * as apiCalls from './api';
 
 class TodoList extends Component {
     constructor(props){
         super(props);
         this.state = {
-            todos: []
+            todos: []  // create an empty state 1st
         }
+        this.addTodo = this.addTodo.bind(this);
     }
 
     componentWillMount(){ 
         this.loadTodos();
     }
 
-    loadTodos() {
-        fetch(APIURL)  // add a proxy http://locahost:8080 to package.json so here we do not need to input localhost
-        .then(resp => {
-            if(!resp.ok) {
-                if(resp.status >=400 && resp.status < 500) {
-                    return resp.json().then(data => {
-                        let err = {errorMessage: data.message};
-                        throw err;
-                    })
-                } else {
-                    let err = {errorMessage: 'Please try again'};
-                    throw err;
-                }
-            }
-            return resp.json();
-        })        
-        .then(todos => this.setState({todos}));
+    async loadTodos() {
+        let todos = await apiCalls.getTodos();
+        this.setState({todos});
+    }
+
+    async addTodo(val){
+        let newTodo = await apiCalls.createTodo(val);       
+
+        // add newTodo to the state and update the front end
+        this.setState({todos: [...this.state.todos, newTodo]})        
+    }
+
+    async deleteTodo(id){
+        await apiCalls.removeTodo(id);        
+        // filter out the deleted todo id and update our front end
+        const todos = this.state.todos.filter(todo => todo._id !== id);
+        this.setState({todos: todos});         
+    }
+
+    async toggleTodo(todo) {        
+        let updatedTodo = await apiCalls.updateTodo(todo);
+     
+        // update the completed status of todo in front end
+        const todos = this.state.todos.map(t =>  
+                (t._id === updatedTodo._id)        // if id is updatedTodo id
+                ? {...t, completed: !t.completed}  // flip it complete state
+                : t                                // leave it as it is
+        );
+        this.setState({todos: todos});         
     }
 
     render() {
@@ -39,11 +53,14 @@ class TodoList extends Component {
             <TodoItem
                 key={t._id}  // _id from MongoDB automatic id field for each item input
                 {...t}  // spread operator to get all other object properties
+                onDelete={this.deleteTodo.bind(this, t._id)}  // 'this' belong to each todo so it must be binded here : only need to pass the id here
+                onToggle={this.toggleTodo.bind(this, t)}  // pass the whole todo item to the function to get its done status
             />
         ));
-        return (  // always need an outer div to wrap all content
+        return (  // always need an outer div to wrap all content  // passdown addTodo function to TodoForm
             <div>  
                 <h1>Todo List</h1>
+                <TodoForm addTodo={this.addTodo}/>   
                 <ul>
                     {todos}
                 </ul>
